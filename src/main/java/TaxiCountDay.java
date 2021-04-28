@@ -1,6 +1,9 @@
+import org.apache.commons.cli.*;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -15,9 +18,9 @@ import java.util.StringTokenizer;
 
 public class TaxiCountDay {
     public static class PickupDayMapper
-            extends Mapper<Object, Text, Text, IntWritable> {
+            extends Mapper<Object, Text, Text, LongWritable> {
 
-        private final static IntWritable one = new IntWritable(1);
+        private final static LongWritable ONE = new LongWritable(1);
         private Text word = new Text();
 
         public static ArrayList<String> readLineCsv(String line) {
@@ -38,19 +41,19 @@ public class TaxiCountDay {
             String pickupDatetime = values.get(1);
             LocalDate pickupDate = LocalDate.parse(pickupDatetime.split(" ")[0]);
             word.set(String.valueOf(pickupDate.getDayOfWeek()));
-            context.write(word, one);
+            context.write(word, ONE);
         }
     }
 
-    public static class IntSumReducer
-            extends Reducer<Text,IntWritable,Text,IntWritable> {
-        private IntWritable result = new IntWritable();
+    public static class LongSumReducer
+            extends Reducer<Text,LongWritable,Text,LongWritable> {
+        private LongWritable result = new LongWritable();
 
-        public void reduce(Text key, Iterable<IntWritable> values,
+        public void reduce(Text key, Iterable<LongWritable> values,
                            Context context
         ) throws IOException, InterruptedException {
             int sum = 0;
-            for (IntWritable val : values) {
+            for (LongWritable val : values) {
                 sum += val.get();
             }
             result.set(sum);
@@ -59,20 +62,47 @@ public class TaxiCountDay {
     }
 
     public static void main(String[] args) throws Exception {
+        Options options = new Options();
+        ArgUtils.addOptions(options, "ior");
+        CommandLineParser parser = new GnuParser();
+        HelpFormatter formatter = new HelpFormatter();
+        CommandLine cmd = null;
+        try {
+            cmd = parser.parse(options, args);
+            if (cmd.getArgs().length < 1) {
+                throw new ParseException("error: specify subJob");
+            }
+            String subJob = cmd.getArgs()[0];
+            if (!subJob.equals("1")) {
+                throw new ParseException("error: subJob doesn't exist");
+            }
+        } catch (ParseException e) {
+            formatter.printHelp("TaxiCountLoc [options...] <subJob#>", "", options, "\n", true);
+            System.out.println(e.getMessage());
+            System.exit(1);
+        }
+
+        Path inFile = new Path(cmd.getOptionValue("input"));
+        Path outFile = new Path(cmd.getOptionValue("output"));
         Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf, "taxicount Day");
+        if (cmd.getOptionValue("rmdir") != null) {
+            FileSystem fs = FileSystem.get(conf);
+            fs.delete(outFile, true);
+        }
+
+        Job job;
+        job = Job.getInstance(conf, "taxicount day: #1 (count days)");
         job.setJarByClass(TaxiCountDay.class);
 
         job.setMapperClass(PickupDayMapper.class);
-        job.setCombinerClass(TaxiCountDay.IntSumReducer.class);
-        job.setReducerClass(TaxiCountDay.IntSumReducer.class);
+        job.setCombinerClass(LongSumReducer.class);
+        job.setReducerClass(LongSumReducer.class);
 
         job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(IntWritable.class);
+        job.setOutputValueClass(LongWritable.class);
 
-        FileInputFormat.addInputPath(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
-
+        FileInputFormat.addInputPath(job, inFile);
+        FileOutputFormat.setOutputPath(job, outFile);
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }

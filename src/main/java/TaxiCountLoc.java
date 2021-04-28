@@ -76,29 +76,11 @@ public class TaxiCountLoc {
         }
     }
 
-    private static Options setupOptions() {
-        Options options = new Options();
-
-        Option input = new Option("i", "input", true, "input folder");
-        input.setRequired(true);
-        options.addOption(input);
-
-        Option output = new Option("o", "output", true, "output folder");
-        output.setRequired(true);
-        options.addOption(output);
-
-        Option rmdir = new Option("r", "rmdir", true, "auto-remove output directory");
-        options.addOption(rmdir);
-
-        return options;
-    }
-
     public static void main(String[] args) throws Exception {
-        Options options = setupOptions();
-
+        Options options = new Options();
+        ArgUtils.addOptions(options, "ior");
         CommandLineParser parser = new GnuParser();
         HelpFormatter formatter = new HelpFormatter();
-
         CommandLine cmd = null;
         try {
             cmd = parser.parse(options, args);
@@ -153,8 +135,6 @@ public class TaxiCountLoc {
         }
         FileInputFormat.addInputPath(job, inFile);
         FileOutputFormat.setOutputPath(job, outFile);
-        if (!job.waitForCompletion(true)) {
-            System.exit(1);
-        }
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
