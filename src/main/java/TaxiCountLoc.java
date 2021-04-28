@@ -1,12 +1,15 @@
+import org.apache.commons.cli.*;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.KeyValueTextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 import java.io.IOException;
@@ -16,9 +19,10 @@ import java.util.StringTokenizer;
 
 public class TaxiCountLoc {
     public static class PickupLocMapper
-            extends Mapper<Object, Text, PairWritable<FloatWritable>, IntWritable> {
+            extends Mapper<Object, Text, GeoLocationWritable, IntWritable> {
 
-        private final static IntWritable one = new IntWritable(1);
+        private final static IntWritable ONE = new IntWritable(1);
+        private static int precision = 4;
 
         public static ArrayList<String> readLineCsv(String line) {
             ArrayList<String> list = new ArrayList<>();
@@ -33,52 +37,124 @@ public class TaxiCountLoc {
                 throws IOException, InterruptedException {
             ArrayList<String> values = readLineCsv(value.toString());
             if (values.size() != 19) {
-                System.out.println("Unexpected number of tokens (" + values.size()  + ") at " + key);
+                System.out.println("Unexpected number of tokens (" + values.size() + ") at " + key);
             }
             BigDecimal pickupLongitude = BigDecimal.valueOf(Double.parseDouble(values.get(5)));
             BigDecimal pickupLatitude = BigDecimal.valueOf(Double.parseDouble(values.get(6)));
-            PairWritable<FloatWritable> pair = new PairWritable<>(
-                    new FloatWritable(pickupLongitude.setScale(4, BigDecimal.ROUND_HALF_UP).floatValue()),
-                    new FloatWritable(pickupLatitude.setScale(4, BigDecimal.ROUND_HALF_UP).floatValue())
+            GeoLocationWritable pair = new GeoLocationWritable(
+                    pickupLongitude.setScale(PickupLocMapper.precision, BigDecimal.ROUND_HALF_UP).doubleValue(),
+                    pickupLatitude.setScale(PickupLocMapper.precision, BigDecimal.ROUND_HALF_UP).doubleValue()
             );
-            context.write(pair, one);
+            context.write(pair, ONE);
         }
     }
 
     public static class IntSumReducer
-            extends Reducer<PairWritable<FloatWritable>,IntWritable,PairWritable<FloatWritable>,IntWritable> {
+            extends Reducer<GeoLocationWritable, IntWritable, GeoLocationWritable, IntWritable> {
 
-//        private final Text resultKey = new Text();
         private final IntWritable resultValue = new IntWritable();
 
-        public void reduce(PairWritable<FloatWritable> key, Iterable<IntWritable> values, Context context)
+        public void reduce(GeoLocationWritable key, Iterable<IntWritable> values, Context context)
                 throws IOException, InterruptedException {
             int sum = 0;
             for (IntWritable val : values) {
                 sum += val.get();
             }
             resultValue.set(sum);
-//            resultKey.set(key.toString());
-//            context.write(resultKey, resultValue);
             context.write(key, resultValue);
         }
     }
 
+    public static class KeyValueSwappingMapper
+            extends Mapper<Text, Text, LongWritable, GeoLocationWritable> {
+
+        public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
+            context.write(
+                    new LongWritable(Long.parseLong(value.toString())),
+                    GeoLocationWritable.fromString(key.toString())
+            );
+        }
+    }
+
+    private static Options setupOptions() {
+        Options options = new Options();
+
+        Option input = new Option("i", "input", true, "input folder");
+        input.setRequired(true);
+        options.addOption(input);
+
+        Option output = new Option("o", "output", true, "output folder");
+        output.setRequired(true);
+        options.addOption(output);
+
+        Option rmdir = new Option("r", "rmdir", true, "auto-remove output directory");
+        options.addOption(rmdir);
+
+        return options;
+    }
+
     public static void main(String[] args) throws Exception {
+        Options options = setupOptions();
+
+        CommandLineParser parser = new GnuParser();
+        HelpFormatter formatter = new HelpFormatter();
+
+        CommandLine cmd = null;
+        try {
+            cmd = parser.parse(options, args);
+            if (cmd.getArgs().length < 1) {
+                throw new ParseException("error: specify subJob");
+            }
+            String subJob = cmd.getArgs()[0];
+            if (!subJob.equals("1") && !subJob.equals("2")) {
+                throw new ParseException("error: subJob doesn't exist");
+            }
+        } catch (ParseException e) {
+            formatter.printHelp("TaxiCountLoc [options...] <subJob#>", "", options, "\n", true);
+            System.out.println(e.getMessage());
+            System.exit(1);
+        }
+
+        Path inFile = new Path(cmd.getOptionValue("input"));
+        Path outFile = new Path(cmd.getOptionValue("output"));
         Configuration conf = new Configuration();
-        Job job = Job.getInstance(conf, "taxicount location");
-        job.setJarByClass(TaxiCountLoc.class);
+        if (cmd.getOptionValue("rmdir") != null) {
+            FileSystem fs = FileSystem.get(conf);
+            fs.delete(outFile, true);
+        }
 
-        job.setMapperClass(PickupLocMapper.class);
-        job.setCombinerClass(TaxiCountLoc.IntSumReducer.class);
-        job.setReducerClass(TaxiCountLoc.IntSumReducer.class);
+        Job job;
+        if (cmd.getArgs()[0].equals("1")) {
+            job = Job.getInstance(conf, "taxicount location: #1 (count geolocations)");
+            job.setJarByClass(TaxiCountLoc.class);
 
-        job.setOutputKeyClass(PairWritable.class);
-        job.setOutputValueClass(IntWritable.class);
+            job.setMapperClass(PickupLocMapper.class);
+            job.setCombinerClass(TaxiCountLoc.IntSumReducer.class);
+            job.setReducerClass(TaxiCountLoc.IntSumReducer.class);
 
-        FileInputFormat.addInputPath(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+            job.setOutputKeyClass(GeoLocationWritable.class);
+            job.setOutputValueClass(IntWritable.class);
 
-        System.exit(job.waitForCompletion(true) ? 0 : 1);
+//            job.setOutputFormatClass(SequenceFileOutputFormat.class);
+        } else {
+            job = Job.getInstance(conf, "taxicount location: #2 (sort sum:geolocations)");
+            job.setJarByClass(TaxiCountLoc.class);
+
+            job.setMapperClass(KeyValueSwappingMapper.class);
+            job.setNumReduceTasks(1);
+            job.setSortComparatorClass(LongWritable.DecreasingComparator.class);
+
+            job.setOutputKeyClass(LongWritable.class);
+            job.setOutputValueClass(GeoLocationWritable.class);
+            job.setMapOutputKeyClass(LongWritable.class);
+            job.setMapOutputValueClass(GeoLocationWritable.class);
+
+            job.setInputFormatClass(KeyValueTextInputFormat.class);
+        }
+        FileInputFormat.addInputPath(job, inFile);
+        FileOutputFormat.setOutputPath(job, outFile);
+        if (!job.waitForCompletion(true)) {
+            System.exit(1);
+        }
     }
 }

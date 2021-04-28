@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### external src ###
+/src/main/java/org/apache/commons/cli/
+
+### compiler output ###
+/out/
