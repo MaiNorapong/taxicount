@@ -4,36 +4,35 @@ import org.apache.hadoop.io.WritableComparable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.Objects;
 
 public class GeoLocationWritable implements WritableComparable<GeoLocationWritable> {
-    private DoubleWritable longitude, latitude;
+    private DoubleWritable latitude, longitude;
 
     //default constructor for (de)serialization
     public GeoLocationWritable() {
-        longitude = new DoubleWritable(0.0d);
         latitude = new DoubleWritable(0.0d);
+        longitude = new DoubleWritable(0.0d);
     }
 
-    public GeoLocationWritable(DoubleWritable longitude, DoubleWritable latitude) {
-        this.longitude = longitude;
+    public GeoLocationWritable(DoubleWritable latitude, DoubleWritable longitude) {
         this.latitude = latitude;
+        this.longitude = longitude;
     }
 
-    public GeoLocationWritable(double longitude, double latitude) {
-        this.longitude = new DoubleWritable(longitude);
+    public GeoLocationWritable(double latitude, double longitude) {
         this.latitude = new DoubleWritable(latitude);
+        this.longitude = new DoubleWritable(longitude);
     }
 
     public void write(DataOutput dataOutput) throws IOException {
-        longitude.write(dataOutput);
         latitude.write(dataOutput);
+        longitude.write(dataOutput);
     }
 
     public void readFields(DataInput dataInput) throws IOException {
-        longitude.readFields(dataInput);
         latitude.readFields(dataInput);
+        longitude.readFields(dataInput);
     }
 
     public DoubleWritable getLongitude() {
@@ -62,18 +61,18 @@ public class GeoLocationWritable implements WritableComparable<GeoLocationWritab
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GeoLocationWritable that = (GeoLocationWritable) o;
-        return Objects.equals(longitude, that.longitude) &&
-                Objects.equals(latitude, that.latitude);
+        return Objects.equals(latitude, that.latitude) &&
+                Objects.equals(longitude, that.longitude);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(longitude, latitude);
+        return Objects.hash(latitude, longitude);
     }
 
     @Override
     public String toString() {
-        return "(" + longitude + "," + latitude + ")";
+        return "(" + latitude + "," + longitude + ")";
     }
 
     static public GeoLocationWritable fromString(String s) {

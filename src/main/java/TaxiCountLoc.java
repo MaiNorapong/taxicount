@@ -42,8 +42,8 @@ public class TaxiCountLoc {
             BigDecimal pickupLongitude = BigDecimal.valueOf(Double.parseDouble(values.get(5)));
             BigDecimal pickupLatitude = BigDecimal.valueOf(Double.parseDouble(values.get(6)));
             GeoLocationWritable pair = new GeoLocationWritable(
-                    pickupLongitude.setScale(PickupLocMapper.precision, BigDecimal.ROUND_HALF_UP).doubleValue(),
-                    pickupLatitude.setScale(PickupLocMapper.precision, BigDecimal.ROUND_HALF_UP).doubleValue()
+                    pickupLatitude.setScale(PickupLocMapper.precision, BigDecimal.ROUND_HALF_UP).doubleValue(),
+                    pickupLongitude.setScale(PickupLocMapper.precision, BigDecimal.ROUND_HALF_UP).doubleValue()
             );
             context.write(pair, ONE);
         }
