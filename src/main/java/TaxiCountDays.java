@@ -2,39 +2,28 @@ import org.apache.commons.cli.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import reducers.LongSumReducer;
 
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.StringTokenizer;
 
-public class TaxiCountDay {
+public class TaxiCountDays {
     public static class PickupDayMapper
             extends Mapper<Object, Text, Text, LongWritable> {
 
         private final static LongWritable ONE = new LongWritable(1);
         private Text word = new Text();
 
-        public static ArrayList<String> readLineCsv(String line) {
-            ArrayList<String> list = new ArrayList<>();
-            StringTokenizer itr = new StringTokenizer(line, ",");
-            while (itr.hasMoreTokens()) {
-                list.add(itr.nextToken().trim());
-            }
-            return list;
-        }
-
         public void map(Object key, Text value, Context context)
                 throws IOException, InterruptedException {
-            ArrayList<String> values = readLineCsv(value.toString());
+            ArrayList<String> values = Utils.readLineCsv(value.toString());
             if (values.size() != 19) {
                 System.out.println("Unexpected number of tokens (" + values.size()  + ") at " + key);
             }
@@ -45,25 +34,9 @@ public class TaxiCountDay {
         }
     }
 
-    public static class LongSumReducer
-            extends Reducer<Text,LongWritable,Text,LongWritable> {
-        private LongWritable result = new LongWritable();
-
-        public void reduce(Text key, Iterable<LongWritable> values,
-                           Context context
-        ) throws IOException, InterruptedException {
-            int sum = 0;
-            for (LongWritable val : values) {
-                sum += val.get();
-            }
-            result.set(sum);
-            context.write(key, result);
-        }
-    }
-
     public static void main(String[] args) throws Exception {
         Options options = new Options();
-        ArgUtils.addOptions(options, "ior");
+        Utils.addOptions(options, "ior");
         CommandLineParser parser = new GnuParser();
         HelpFormatter formatter = new HelpFormatter();
         CommandLine cmd = null;
@@ -77,7 +50,7 @@ public class TaxiCountDay {
                 throw new ParseException("error: subJob doesn't exist");
             }
         } catch (ParseException e) {
-            formatter.printHelp("TaxiCountLoc [options...] <subJob#>", "", options, "\n", true);
+            formatter.printHelp("TaxiCountDays [options...] <subJob#>", "", options, "\n", true);
             System.out.println(e.getMessage());
             System.exit(1);
         }
@@ -91,8 +64,8 @@ public class TaxiCountDay {
         }
 
         Job job;
-        job = Job.getInstance(conf, "taxicount day: #1 (count days)");
-        job.setJarByClass(TaxiCountDay.class);
+        job = Job.getInstance(conf, "taxicount days: #1 (count days)");
+        job.setJarByClass(TaxiCountDays.class);
 
         job.setMapperClass(PickupDayMapper.class);
         job.setCombinerClass(LongSumReducer.class);

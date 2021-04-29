@@ -11,6 +11,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.KeyValueTextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import writables.DoublePairWritable;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -19,29 +20,20 @@ import java.util.StringTokenizer;
 
 public class TaxiCountLoc {
     public static class PickupLocMapper
-            extends Mapper<Object, Text, GeoLocationWritable, IntWritable> {
+            extends Mapper<Object, Text, DoublePairWritable, IntWritable> {
 
         private final static IntWritable ONE = new IntWritable(1);
         private static int precision = 4;
 
-        public static ArrayList<String> readLineCsv(String line) {
-            ArrayList<String> list = new ArrayList<>();
-            StringTokenizer itr = new StringTokenizer(line, ",");
-            while (itr.hasMoreTokens()) {
-                list.add(itr.nextToken().trim());
-            }
-            return list;
-        }
-
         public void map(Object key, Text value, Context context)
                 throws IOException, InterruptedException {
-            ArrayList<String> values = readLineCsv(value.toString());
+            ArrayList<String> values = Utils.readLineCsv(value.toString());
             if (values.size() != 19) {
                 System.out.println("Unexpected number of tokens (" + values.size() + ") at " + key);
             }
             BigDecimal pickupLongitude = BigDecimal.valueOf(Double.parseDouble(values.get(5)));
             BigDecimal pickupLatitude = BigDecimal.valueOf(Double.parseDouble(values.get(6)));
-            GeoLocationWritable pair = new GeoLocationWritable(
+            DoublePairWritable pair = new DoublePairWritable(
                     pickupLatitude.setScale(PickupLocMapper.precision, BigDecimal.ROUND_HALF_UP).doubleValue(),
                     pickupLongitude.setScale(PickupLocMapper.precision, BigDecimal.ROUND_HALF_UP).doubleValue()
             );
@@ -50,11 +42,11 @@ public class TaxiCountLoc {
     }
 
     public static class IntSumReducer
-            extends Reducer<GeoLocationWritable, IntWritable, GeoLocationWritable, IntWritable> {
+            extends Reducer<DoublePairWritable, IntWritable, DoublePairWritable, IntWritable> {
 
         private final IntWritable resultValue = new IntWritable();
 
-        public void reduce(GeoLocationWritable key, Iterable<IntWritable> values, Context context)
+        public void reduce(DoublePairWritable key, Iterable<IntWritable> values, Context context)
                 throws IOException, InterruptedException {
             int sum = 0;
             for (IntWritable val : values) {
@@ -66,19 +58,19 @@ public class TaxiCountLoc {
     }
 
     public static class KeyValueSwappingMapper
-            extends Mapper<Text, Text, LongWritable, GeoLocationWritable> {
+            extends Mapper<Text, Text, LongWritable, DoublePairWritable> {
 
         public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
             context.write(
                     new LongWritable(Long.parseLong(value.toString())),
-                    GeoLocationWritable.fromString(key.toString())
+                    DoublePairWritable.fromString(key.toString())
             );
         }
     }
 
     public static void main(String[] args) throws Exception {
         Options options = new Options();
-        ArgUtils.addOptions(options, "ior");
+        Utils.addOptions(options, "ior");
         CommandLineParser parser = new GnuParser();
         HelpFormatter formatter = new HelpFormatter();
         CommandLine cmd = null;
@@ -114,7 +106,7 @@ public class TaxiCountLoc {
             job.setCombinerClass(TaxiCountLoc.IntSumReducer.class);
             job.setReducerClass(TaxiCountLoc.IntSumReducer.class);
 
-            job.setOutputKeyClass(GeoLocationWritable.class);
+            job.setOutputKeyClass(DoublePairWritable.class);
             job.setOutputValueClass(IntWritable.class);
 
 //            job.setOutputFormatClass(SequenceFileOutputFormat.class);
@@ -127,9 +119,9 @@ public class TaxiCountLoc {
             job.setSortComparatorClass(LongWritable.DecreasingComparator.class);
 
             job.setOutputKeyClass(LongWritable.class);
-            job.setOutputValueClass(GeoLocationWritable.class);
+            job.setOutputValueClass(DoublePairWritable.class);
             job.setMapOutputKeyClass(LongWritable.class);
-            job.setMapOutputValueClass(GeoLocationWritable.class);
+            job.setMapOutputValueClass(DoublePairWritable.class);
 
             job.setInputFormatClass(KeyValueTextInputFormat.class);
         }
