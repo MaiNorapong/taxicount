@@ -1,7 +1,13 @@
 # taxicount
 
 Part of assignment #1 (course: Big Data Platform Analytics).
-Haddop MapReduce program to count taxis ([NYC taxi dataset](https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page)).
+Hadoop MapReduce program to count taxis ([NYC taxi dataset](https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page)).
+
+## Requirements
+
+To compile `taxicount.jar` yourself you need [Apache Commons CLI version 1.2](https://archive.apache.org/dist/commons/cli/source/) (the same version Hadoop uses) (aside from other dependencies listed in `pom.xml`).
+
+I included a compiled JAR for ease.
 
 ## Commands
 
