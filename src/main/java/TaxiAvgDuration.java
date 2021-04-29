@@ -91,7 +91,7 @@ public class TaxiAvgDuration {
                 throw new ParseException("error: specify subJob");
             }
             String subJob = cmd.getArgs()[0];
-            if (!subJob.equals("1") && !subJob.equals("2") ) {
+            if (!subJob.equals("1")) {
                 throw new ParseException("error: subJob doesn't exist");
             }
         } catch (ParseException e) {
@@ -109,29 +109,16 @@ public class TaxiAvgDuration {
         }
 
         Job job;
-        if (cmd.getArgs()[0].equals("1")) {
-            job = Job.getInstance(conf, "taxicount avg duration: #1 (sum & count duration)");
-            job.setJarByClass(TaxiAvgDuration.class);
+        job = Job.getInstance(conf, "taxicount avg duration: #1 (sum & count duration)");
+        job.setJarByClass(TaxiAvgDuration.class);
 
-            job.setMapperClass(TaxiAvgDuration.DurationMapper.class);
-            job.setCombinerClass(CountSumReducer.class);
-            job.setReducerClass(CountSumReducer.class);
+        job.setMapperClass(TaxiAvgDuration.DurationMapper.class);
+        job.setCombinerClass(CountSumReducer.class);
+        job.setReducerClass(CountSumReducer.class);
 
-            job.setOutputKeyClass(IntWritable.class);
-            job.setOutputValueClass(LongPairWritable.class);
-        } else {
-            job = Job.getInstance(conf, "taxicount avg duration: #2 (sum / count)");
-//            job.setJarByClass(TaxiCountLoc.class);
-//
-//            job.setMapperClass(TaxiCountLoc.KeyValueSwappingMapper.class);
-//            job.setNumReduceTasks(1);
-//            job.setSortComparatorClass(LongWritable.DecreasingComparator.class);
-//
-//            job.setOutputKeyClass(LongWritable.class);
-//            job.setOutputValueClass(DoublePairWritable.class);
-//            job.setMapOutputKeyClass(LongWritable.class);
-//            job.setMapOutputValueClass(DoublePairWritable.class);
-        }
+        job.setOutputKeyClass(IntWritable.class);
+        job.setOutputValueClass(LongPairWritable.class);
+
         FileInputFormat.addInputPath(job, inFile);
         FileOutputFormat.setOutputPath(job, outFile);
         System.exit(job.waitForCompletion(true) ? 0 : 1);

@@ -16,7 +16,6 @@ import writables.DoublePairWritable;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.StringTokenizer;
 
 public class TaxiCountLoc {
     public static class PickupLocMapper
